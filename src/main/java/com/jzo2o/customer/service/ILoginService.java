@@ -11,14 +11,14 @@ public interface ILoginService {
 
 
     /**
-     * 服务人员验证码登录
+     * 机构人员验证码登录
      *
      * @param loginForWorkReqDTO 登录参数
      * @return
      */
     LoginResDTO loginForPassword(LoginForWorkReqDTO loginForWorkReqDTO);
     /**
-     * 机构人员账号密码登录
+     * 服务人员账号密码登录
      *
      * @param loginForWorkReqDTO 登录参数
      * @return
