@@ -3,6 +3,7 @@ package com.jzo2o.customer.service.impl;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -208,30 +209,6 @@ public class ServeProviderServiceImpl extends ServiceImpl<ServeProviderMapper, S
     }
 
     /**
-     * 机构端注册
-     *
-     * @param institutionRegisterReqDTO 机构人员注册请求
-     */
-    @Override
-    public void register(InstitutionRegisterReqDTO institutionRegisterReqDTO) {
-        //1.校验手机验证码是否正确
-        //1.1.数据校验
-        if(StringUtils.isEmpty(institutionRegisterReqDTO.getVerifyCode())){
-            throw new BadRequestException("验证码错误，请重新获取");
-        }
-        //1.2.远程调用publics服务校验验证码是否正确
-        boolean verifyResult = smsCodeApi.verify(institutionRegisterReqDTO.getPhone(), SmsBussinessTypeEnum.INSTITION_REGISTER, institutionRegisterReqDTO.getVerifyCode()).getIsSuccess();
-        if(!verifyResult) {
-            throw new BadRequestException("验证码错误，请重新获取");
-        }
-        //2.检查手机号是否被注册过，没有则注册
-        String encode = passwordEncoder.encode(institutionRegisterReqDTO.getPassword());
-        // 用代理对象调用，触发事务切面。如果不这样，add的事务注解会失效
-        owner.add(institutionRegisterReqDTO.getPhone(), UserType.INSTITUTION, encode);
-
-    }
-
-    /**
      * 根据服务人员/机构id查询基本信息
      *
      * @param id 服务人员/机构id
@@ -298,4 +275,76 @@ public class ServeProviderServiceImpl extends ServiceImpl<ServeProviderMapper, S
         ServeProvider serveProvider = baseMapper.selectById(UserContext.currentUserId());
         return BeanUtils.toBean(serveProvider,ServeProviderInfoResDTO.class);
     }
+
+    /**
+     * 机构端注册
+     *
+     * @param institutionRegisterReqDTO 机构人员注册请求
+     */
+    @Override
+    public void register(InstitutionRegisterReqDTO institutionRegisterReqDTO) {
+        //1.校验手机验证码是否正确
+        //1.1.数据校验
+        if(StringUtils.isEmpty(institutionRegisterReqDTO.getVerifyCode())){
+            throw new BadRequestException("验证码错误，请重新获取");
+        }
+        //1.2.远程调用publics服务校验验证码是否正确
+        boolean verifyResult = smsCodeApi.verify(institutionRegisterReqDTO.getPhone(), SmsBussinessTypeEnum.INSTITION_REGISTER, institutionRegisterReqDTO.getVerifyCode()).getIsSuccess();
+        if(!verifyResult) {
+            throw new BadRequestException("验证码错误，请重新获取");
+        }
+        //2.检查手机号是否被注册过，没有则注册
+        String encode = passwordEncoder.encode(institutionRegisterReqDTO.getPassword());
+        // 用代理对象调用，触发事务切面。如果不这样，add的事务注解会失效
+        owner.add(institutionRegisterReqDTO.getPhone(), UserType.INSTITUTION, encode);
+
+    }
+
+    /**
+     * 机构端重置密码
+     *
+     * @param institutionResetPasswordReqDTO 机构人员重置密码请求
+     */
+    @Override
+    //@Transactional
+    public void institutionResetPassword(InstitutionResetPasswordReqDTO institutionResetPasswordReqDTO) {
+        //判断非空
+        if (ObjectUtils.isNull(institutionResetPasswordReqDTO)) {
+            throw new BadRequestException("参数错误");
+        }
+        //远程调用publics服务判断验证码是否正确
+        boolean verifyResult = smsCodeApi.verify(institutionResetPasswordReqDTO.getPhone(), SmsBussinessTypeEnum.INSTITUTION_RESET_PASSWORD, institutionResetPasswordReqDTO.getVerifyCode()).getIsSuccess();
+        if(!verifyResult) {
+            throw new BadRequestException("验证码错误，请重新获取");
+        }
+        //判断电话对应机构账号是否存在
+        ServeProvider existServeProvider = lambdaQuery().eq(ServeProvider::getPhone, institutionResetPasswordReqDTO.getPhone()).one();
+        if (existServeProvider == null) {
+            throw new BadRequestException("该账号不存在");
+        }
+        //判断该电话是否为机构账号
+        if (!existServeProvider.getType().equals(UserType.INSTITUTION)) {
+            throw new BadRequestException("该账号不是机构账号");
+        }
+        //判断电话对应机构账号是否冻结
+        if (existServeProvider.getStatus().equals(CommonStatusConstants.USER_STATUS_FREEZE)) {
+            throw new BadRequestException("该账号已冻结");
+        }
+
+        //密码加密
+        String encode = passwordEncoder.encode(institutionResetPasswordReqDTO.getPassword());
+        //更新密码
+        boolean update = lambdaUpdate()
+                .eq(ServeProvider::getId, existServeProvider.getId())
+                .set(ServeProvider::getPassword, encode)
+                .update();
+        if (!update) {
+            throw new BadRequestException("重置密码失败");
+        }
+        //和之前 register 方法的问题一样：
+        //- 方法上加了 `@Transactional`，但内部包含 smsCodeApi.verify 远程 RPC 调用，加 `@Transactional` **不会** 让业务出错，但也**不能** 实现你想要的「RPC 和数据库原子一致」的效果
+        //- 远程调用耗时不可控，会拉长数据库事务生命周期，长时间占用数据库连接，高并发场景下会快速耗尽连接池，拖垮整个服务
+        //todo:最佳实践:验证码校验这种非数据库操作，全部放在事务外面；事务只包裹最后的数据库更新操作。
+    }
+
 }

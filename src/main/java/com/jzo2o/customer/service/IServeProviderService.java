@@ -7,6 +7,7 @@ import com.jzo2o.api.customer.dto.response.ServeProviderSimpleResDTO;
 import com.jzo2o.common.model.PageResult;
 import com.jzo2o.customer.model.domain.ServeProvider;
 import com.jzo2o.customer.model.dto.request.InstitutionRegisterReqDTO;
+import com.jzo2o.customer.model.dto.request.InstitutionResetPasswordReqDTO;
 import com.jzo2o.customer.model.dto.request.ServeProviderPageQueryReqDTO;
 import com.jzo2o.customer.model.dto.response.CertificationStatusDTO;
 import com.jzo2o.customer.model.dto.response.ServeProviderBasicInformationResDTO;
@@ -124,4 +125,11 @@ public interface IServeProviderService extends IService<ServeProvider> {
      * 机构端注册方法
      */
     void register(InstitutionRegisterReqDTO institutionRegisterReqDTO);
+
+    /**
+     * 机构重置密码
+     * @param institutionResetPasswordReqDTO
+     *
+     */
+    void institutionResetPassword(InstitutionResetPasswordReqDTO institutionResetPasswordReqDTO);
 }
