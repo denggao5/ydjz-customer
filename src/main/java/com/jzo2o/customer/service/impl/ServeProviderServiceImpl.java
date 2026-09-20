@@ -35,6 +35,7 @@ import com.jzo2o.customer.model.dto.response.ServeProviderListResDTO;
 import com.jzo2o.customer.service.*;
 import com.jzo2o.mvc.utils.UserContext;
 import com.jzo2o.mysql.utils.PageHelperUtils;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -204,6 +205,30 @@ public class ServeProviderServiceImpl extends ServiceImpl<ServeProviderMapper, S
             AgencyCertification agencyCertification = agencyCertificationService.getById(providerId);
             return BeanUtil.toBean(agencyCertification,CertificationStatusDTO.class);
         }
+    }
+
+    /**
+     * 机构端注册
+     *
+     * @param institutionRegisterReqDTO 机构人员注册请求
+     */
+    @Override
+    public void register(InstitutionRegisterReqDTO institutionRegisterReqDTO) {
+        //1.校验手机验证码是否正确
+        //1.1.数据校验
+        if(StringUtils.isEmpty(institutionRegisterReqDTO.getVerifyCode())){
+            throw new BadRequestException("验证码错误，请重新获取");
+        }
+        //1.2.远程调用publics服务校验验证码是否正确
+        boolean verifyResult = smsCodeApi.verify(institutionRegisterReqDTO.getPhone(), SmsBussinessTypeEnum.INSTITION_REGISTER, institutionRegisterReqDTO.getVerifyCode()).getIsSuccess();
+        if(!verifyResult) {
+            throw new BadRequestException("验证码错误，请重新获取");
+        }
+        //2.检查手机号是否被注册过，没有则注册
+        String encode = passwordEncoder.encode(institutionRegisterReqDTO.getPassword());
+        // 用代理对象调用，触发事务切面。如果不这样，add的事务注解会失效
+        owner.add(institutionRegisterReqDTO.getPhone(), UserType.INSTITUTION, encode);
+
     }
 
     /**

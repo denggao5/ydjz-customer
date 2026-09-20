@@ -7,7 +7,6 @@ import com.jzo2o.api.customer.dto.response.ServeProviderSimpleResDTO;
 import com.jzo2o.common.model.PageResult;
 import com.jzo2o.customer.model.domain.ServeProvider;
 import com.jzo2o.customer.model.dto.request.InstitutionRegisterReqDTO;
-import com.jzo2o.customer.model.dto.request.InstitutionResetPasswordReqDTO;
 import com.jzo2o.customer.model.dto.request.ServeProviderPageQueryReqDTO;
 import com.jzo2o.customer.model.dto.response.CertificationStatusDTO;
 import com.jzo2o.customer.model.dto.response.ServeProviderBasicInformationResDTO;
@@ -66,7 +65,6 @@ public interface IServeProviderService extends IService<ServeProvider> {
      */
     ServeProvider findById(Long id);
 
-
     /**
      * 新增用户
      *
@@ -121,4 +119,9 @@ public interface IServeProviderService extends IService<ServeProvider> {
      * @return
      */
     CertificationStatusDTO getCertificationStatus(Integer userType, Long providerId);
+
+    /**
+     * 机构端注册方法
+     */
+    void register(InstitutionRegisterReqDTO institutionRegisterReqDTO);
 }
