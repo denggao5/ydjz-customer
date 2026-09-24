@@ -40,6 +40,9 @@ import java.util.List;
 @Service
 public class AddressBookServiceImpl extends ServiceImpl<AddressBookMapper, AddressBook> implements IAddressBookService {
 
+    @Resource
+    private MapApi mapApi;
+
     @Override
     public List<AddressBookResDTO> getByUserIdAndCity(Long userId, String city) {
 
@@ -51,5 +54,46 @@ public class AddressBookServiceImpl extends ServiceImpl<AddressBookMapper, Addre
             return new ArrayList<>();
         }
         return BeanUtils.copyToList(addressBooks, AddressBookResDTO.class);
+    }
+
+    /**
+     * 添加地址薄
+     *
+     * @param addressBookUpsertReqDTO 地址薄增改请求参数
+     */
+    @Override
+    @Transactional
+    public void addAddressBook(AddressBookUpsertReqDTO addressBookUpsertReqDTO) {
+        //由于前端和@Valid注解都对DTO进行了校验，这里为方便不再重复校验
+        //1.转换数据库对象，补全剩下的属性（登录用户id，是否删除，通过高德地图获取经纬度）
+        AddressBook addressBook = BeanUtil.copyProperties(addressBookUpsertReqDTO, AddressBook.class);
+        //2.获取当前登录用户id和经纬度，由于AddressBookUpsertReqDTO中的location经纬度不是必需的，这里调用高德地图API获取
+        Long userId = UserContext.currentUserId();
+        //高德地图的地理编码接口，通过详细地址得到经纬度。
+        LocationResDTO locationByAddress = mapApi.getLocationByAddress(addressBookUpsertReqDTO.getAddress());
+        String location = locationByAddress.getLocation();
+        Double longtitude = Double.valueOf(location.split(",")[0]);
+        Double latitude = Double.valueOf(location.split(",")[1]);
+        
+        addressBook.setUserId(userId);
+        addressBook.setIsDeleted(0);//尽管数据库做了默认0，但这里还是显式地设置
+        addressBook.setLon(longtitude);
+        addressBook.setLat(latitude);
+
+        //3.默认地址处理，查询当前用户的地址簿列表中是否已经存在未删除的默认地址，若存在且前端传递的DTO中的isDefault为1，则设置当前地址为默认地址
+        if (addressBookUpsertReqDTO.getIsDefault() == 1) {
+            AddressBook addressBookDB = lambdaQuery()
+                    .eq(AddressBook::getUserId, userId)
+                    .eq(AddressBook::getIsDeleted, 0)
+                    .eq(AddressBook::getIsDefault, 1)
+                    .one();
+            //如果有默认地址，则将其改为非默认
+            if (ObjectUtil.isNotNull(addressBookDB)) {
+                addressBookDB.setIsDefault(0);
+                updateById(addressBookDB);
+            }
+        }
+        //4.保存地址薄
+        save(addressBook);
     }
 }
